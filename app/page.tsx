@@ -101,7 +101,7 @@ export default function Home() {
             </div>
             <div className="hidden md:flex gap-6 text-sm font-medium">
               <a href="/train" className="hover:text-emerald-400 transition">Train</a>
-              <a href="#" className="hover:text-emerald-400 transition">Compete</a>
+              <a href="/live" className="hover:text-emerald-400 transition">Compete</a>
               <a href="#" className="hover:text-emerald-400 transition">Disciplines</a>
               <a href="/leaderboard" className="hover:text-emerald-400 transition">Leaderboards</a>
               <a href="#" className="hover:text-emerald-400 transition">Community</a>
@@ -172,7 +172,7 @@ export default function Home() {
               Start Cards Training
             </a>
             <button className="border-2 border-white hover:bg-white hover:text-black text-xl px-12 py-6 rounded-2xl font-bold transition">
-              Join a Live Match
+              <a href="/live">Join a Live Match</a>
             </button>
             <button className="border-2 border-white hover:bg-white hover:text-black text-xl px-12 py-6 rounded-2xl font-bold transition">
               Browse Disciplines

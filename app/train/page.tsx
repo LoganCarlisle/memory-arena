@@ -60,6 +60,14 @@ export default function TrainPage() {
     return Math.min(1, recallOrder.length / memorizedCount);
   }, [memorizedCount, recallOrder.length]);
 
+  const cardOverlap = useMemo(() => {
+    // More cards => less overlap (so higher recall length doesn’t become too crowded)
+    const maxOverlap = -8; // Less overlap for better readability
+    const minOverlap = -2; // Even less overlap at high counts
+    const fraction = Math.min(1, memorizeDeck.length / 52);
+    return Math.round(maxOverlap + (minOverlap - maxOverlap) * fraction);
+  }, [memorizeDeck.length]);
+
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then((res) => setUser(res.data.user));
@@ -98,7 +106,7 @@ export default function TrainPage() {
   };
 
   const beginRecall = () => {
-    setRecallPool(shuffle(memorizeDeck));
+    setRecallPool(buildDeck()); // Use full deck in order
     setRecallOrder(Array(memorizeDeck.length).fill(undefined));
     setSelectedSlot(0);
     setStage('recall');
@@ -108,19 +116,12 @@ export default function TrainPage() {
     if (stage !== 'recall') return;
     if (recallOrder.filter((c) => c !== undefined).length >= memorizeDeck.length) return;
 
-    const findNextEmpty = (currentIndex: number) => {
-    // 1. First, search from the next card to the end of the deck
-    for (let i = currentIndex + 1; i < memorizeDeck.length; i++) {
+    const findNextEmpty = (startIndex: number) => {
+      // Only search forward from the startIndex, don't wrap around
+      for (let i = startIndex; i < memorizeDeck.length; i++) {
         if (!recallOrder[i]) return i;
-    }
-    
-    // 2. If nothing is found, wrap around and search from the beginning up to the current card
-    for (let i = 0; i < currentIndex; i++) {
-        if (!recallOrder[i]) return i;
-    }
-    
-    // 3. If the deck is completely full, return -1
-    return -1;
+      }
+      return -1;
     };
 
     // If the user has selected a slot, use it. Otherwise fill in order starting from the last placed card.
@@ -163,7 +164,16 @@ export default function TrainPage() {
     setRecallPool((prev) => [...prev, card]);
 
     setSelectedSlot(index); // Select the now-empty slot
-    setLastPlacedIndex(index - 1 >= 0 ? index - 1 : null);
+
+    // Update lastPlacedIndex - find the highest index that still has a card
+    let newLastPlacedIndex = null;
+    for (let i = memorizeDeck.length - 1; i >= 0; i--) {
+      if (newRecallOrder[i]) {
+        newLastPlacedIndex = i;
+        break;
+      }
+    }
+    setLastPlacedIndex(newLastPlacedIndex);
   };
 
   const finishRecall = () => {
@@ -456,14 +466,12 @@ export default function TrainPage() {
                 </div>
 
                 <div className="flex justify-center gap-4">
-                  {isMemorizeComplete && (
-                    <button
-                      onClick={beginRecall}
-                      className="px-8 py-3 rounded-xl font-semibold bg-emerald-600 hover:bg-emerald-500 text-black transition"
-                    >
-                      Start Recall Phase
-                    </button>
-                  )}
+                  <button
+                    onClick={beginRecall}
+                    className="px-8 py-3 rounded-xl font-semibold bg-emerald-600 hover:bg-emerald-500 text-black transition"
+                  >
+                    Start Recall Phase
+                  </button>
                 </div>
               </div>
             )}
@@ -482,73 +490,65 @@ export default function TrainPage() {
                   </p>
                 </div>
 
-                {/* Placeholder row (stacked style) */}
+                {/* Placeholder row (stacked cards) */}
                 <div className="mb-10">
                   <div className="text-sm text-gray-400 mb-3">Recreate the order</div>
-                  <div className="flex items-center justify-center">
+                  <div className="flex flex-wrap justify-center gap-4">
                     {Array.from({ length: memorizeDeck.length }).map((_, idx) => {
                       const selected = recallOrder[idx];
                       const isSelected = selectedSlot === idx;
-                      const isWrong = selected && selected.id !== memorizeDeck[idx]?.id;
 
                       return (
-                        <button
-                          key={idx}
-                          onClick={() => setSelectedSlot(idx)}
-                          className={`relative w-24 h-32 rounded-2xl border-2 p-2 transition cursor-pointer ${
-                            isSelected
-                              ? 'border-blue-400 bg-blue-400/10 scale-105'
-                              : selected
-                              ? isWrong
-                                ? 'border-rose-400 bg-rose-400/10'
-                                : 'border-emerald-400 bg-emerald-400/10'
-                              : 'border-white/10 bg-white/5 hover:border-white/30'
-                          }`}
-                          style={{ marginLeft: idx === 0 ? 0 : -36 }}
-                        >
-                          {selected ? (
-                            <img
-                              src={getCardImage(selected)}
-                              alt={selected.label}
-                              className="w-full h-full object-cover rounded"
-                            />
-                          ) : (
-                            <div className="flex h-full w-full items-center justify-center text-gray-500 text-3xl">
-                              {idx + 1}
-                            </div>
-                          )}
-                        </button>
+                        <div key={idx} className="flex flex-col items-center">
+                          <div className="text-xs text-gray-400 mb-1">{idx + 1}</div>
+                          <button
+                            onClick={() => setSelectedSlot(idx)}
+                            className={`relative w-20 h-28 rounded-2xl border-2 p-1 transition cursor-pointer ${
+                              isSelected
+                                ? 'border-blue-300 bg-blue-300/15'
+                                : 'border-white/20 bg-white/5 hover:border-white/35'
+                            }`}
+                            style={{ marginRight: idx === memorizeDeck.length - 1 ? 0 : -24, zIndex: idx + 10 }}
+                          >
+                            {selected ? (
+                              <img
+                                src={getCardImage(selected)}
+                                alt={selected.label}
+                                className="w-full h-full object-cover rounded"
+                              />
+                            ) : (
+                              <div className="flex h-full w-full flex-col items-center justify-center text-gray-400">
+                                <div className="text-xs">Slot</div>
+                                <div className="text-lg font-semibold">{idx + 1}</div>
+                              </div>
+                            )}
+                          </button>
+                        </div>
                       );
                     })}
                   </div>
                 </div>
 
-                {/* Available cards (stacked) */}
+                {/* All 52 cards (small, stacked) */}
                 <div className="mb-6">
-                  <div className="text-sm text-gray-400 mb-3">Available cards ({recallPool.length} remaining)</div>
-                  <div className="flex items-center justify-center">
-                    {recallPool.map((card, idx) => (
-                      <button
-                        key={card.id}
-                        onClick={() => {
-                          if (selectedSlot !== null) {
-                            handleCardClick(card);
-                            // Auto-select next empty slot
-                            const nextEmptySlot = recallOrder.findIndex(c => c === undefined);
-                            setSelectedSlot(nextEmptySlot !== -1 ? nextEmptySlot : null);
-                          }
-                        }}
-                        disabled={selectedSlot === null}
-                        className="relative w-20 h-28 rounded-2xl border border-white/10 bg-white/10 transition hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-                        style={{ marginLeft: idx === 0 ? 0 : -30, zIndex: idx }}
-                      >
-                        <img
-                          src={getCardImage(card)}
-                          alt={card.label}
-                          className="w-full h-full object-cover rounded"
-                        />
-                      </button>
-                    ))}
+                  <div className="text-sm text-gray-400 mb-3">All cards</div>
+                  <div className="flex items-center justify-center overflow-x-auto pb-2">
+                    {recallPool.map((card, idx) => {
+                      const isRed = card.suit === '♥' || card.suit === '♦';
+                      return (
+                        <button
+                          key={card.id}
+                          onClick={() => handleCardClick(card)}
+                          className="relative w-14 h-16 rounded-lg border border-gray-300 bg-white text-sm font-bold transition hover:scale-110 hover:border-gray-400"
+                          style={{ marginLeft: idx === 0 ? 0 : cardOverlap, zIndex: idx }}
+                        >
+                          <div className="flex h-full w-full flex-col items-center justify-center" style={{ color: isRed ? '#dc2626' : '#000000' }}>
+                            <span className="text-base">{card.rank}</span>
+                            <span className="text-xl">{card.suit}</span>
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -571,13 +571,69 @@ export default function TrainPage() {
             )}
 
             {stage === 'done' && (
-              <div className="bg-[#1a1a1a] rounded-3xl p-12 text-center">
-                <div className="text-6xl mb-4">🎉</div>
-                <h3 className="text-3xl font-bold mb-2">Training Complete!</h3>
-                <div className="text-6xl font-black text-emerald-400 mb-2">{score}</div>
-                <div className="text-xl text-gray-400 mb-8">correct out of {memorizeDeck.length} cards</div>
+              <div className="bg-[#1a1a1a] rounded-3xl p-8">
+                <div className="text-center mb-6">
+                  <div className="text-6xl mb-4">🎉</div>
+                  <h3 className="text-3xl font-bold mb-2">Training Complete!</h3>
+                  <div className="text-6xl font-black text-emerald-400 mb-2">{score}</div>
+                  <div className="text-xl text-gray-400 mb-8">correct out of {memorizeDeck.length} cards</div>
+                </div>
 
-                <div className="flex flex-wrap justify-center gap-4 mb-6">
+                {/* Show correct order with highlighting */}
+                <div className="mb-8">
+                  <div className="text-sm text-gray-400 mb-4 text-center">Your answers vs correct order</div>
+                  <div className="flex items-center justify-center gap-2 overflow-x-auto pb-4">
+                    {memorizeDeck.map((correctCard, idx) => {
+                      const userCard = recallOrder[idx];
+                      const isCorrect = userCard && userCard.id === correctCard.id;
+                      const hasAnswer = userCard !== undefined;
+
+                      return (
+                        <div key={idx} className="flex flex-col items-center min-w-0">
+                          <div className="text-xs text-gray-400 mb-1">{idx + 1}</div>
+                          <div className="relative">
+                            {/* User's answer */}
+                            <div className={`w-16 h-24 rounded-lg border-2 mb-1 ${
+                              hasAnswer
+                                ? isCorrect
+                                  ? 'border-emerald-400 bg-emerald-400/10'
+                                  : 'border-rose-400 bg-rose-400/10'
+                                : 'border-gray-600 bg-gray-600/10'
+                            }`}>
+                              {hasAnswer ? (
+                                <img
+                                  src={getCardImage(userCard)}
+                                  alt={userCard.label}
+                                  className="w-full h-full object-cover rounded"
+                                />
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center text-gray-500 text-lg">
+                                  ?
+                                </div>
+                              )}
+                            </div>
+                            {/* Correct answer */}
+                            <div className="w-16 h-24 rounded-lg border-2 border-blue-400 bg-blue-400/10">
+                              <img
+                                src={getCardImage(correctCard)}
+                                alt={correctCard.label}
+                                className="w-full h-full object-cover rounded"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="text-center text-xs text-gray-400 mt-2">
+                    <div className="flex items-center justify-center gap-4">
+                      <span>Your answers (top)</span>
+                      <span>Correct order (bottom)</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap justify-center gap-4">
                   <button
                     onClick={handleSubmitScore}
                     disabled={submitting}
@@ -600,7 +656,9 @@ export default function TrainPage() {
                 </div>
 
                 {message && (
-                  <div className="text-sm text-gray-200">{message}</div>
+                  <div className="text-center mt-4">
+                    <div className="text-sm text-gray-200">{message}</div>
+                  </div>
                 )}
               </div>
             )}

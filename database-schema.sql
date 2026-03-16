@@ -1,6 +1,11 @@
--- Create tables for Memory Arena stats
-
--- Table to track user sessions/online status
+-- Table for user profiles
+CREATE TABLE IF NOT EXISTS profiles (
+  id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
+  username TEXT UNIQUE,
+  avatar_url TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
 CREATE TABLE IF NOT EXISTS user_sessions (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -31,6 +36,24 @@ CREATE TABLE IF NOT EXISTS arenas (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Table for live matches
+CREATE TABLE IF NOT EXISTS matches (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  arena_id UUID REFERENCES arenas(id) ON DELETE CASCADE,
+  player1_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  player2_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  player1_name TEXT,
+  player2_name TEXT,
+  discipline TEXT NOT NULL,
+  status TEXT DEFAULT 'waiting', -- waiting, playing, finished
+  player1_score DECIMAL,
+  player2_score DECIMAL,
+  winner_id UUID REFERENCES auth.users(id),
+  started_at TIMESTAMPTZ,
+  ended_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Table for game results/scores
 CREATE TABLE IF NOT EXISTS game_results (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -42,12 +65,19 @@ CREATE TABLE IF NOT EXISTS game_results (
 );
 
 -- Enable RLS
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE game_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE arenas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE matches ENABLE ROW LEVEL SECURITY;
 ALTER TABLE game_results ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies
+CREATE POLICY "Users can view all profiles" ON profiles
+  FOR SELECT USING (true);
+
+CREATE POLICY "Users can update their own profile" ON profiles
+  FOR ALL USING (auth.uid() = id);
 CREATE POLICY "Users can view their own sessions" ON user_sessions
   FOR ALL USING (auth.uid() = user_id);
 
@@ -57,8 +87,14 @@ CREATE POLICY "Users can view their own game sessions" ON game_sessions
 CREATE POLICY "Anyone can view arenas" ON arenas
   FOR SELECT USING (true);
 
-CREATE POLICY "Users can view their own results" ON game_results
-  FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Anyone can view matches" ON matches
+  FOR SELECT USING (true);
+
+CREATE POLICY "Users can create matches" ON matches
+  FOR INSERT WITH CHECK (auth.uid() = player1_id);
+
+CREATE POLICY "Players can update their matches" ON matches
+  FOR UPDATE USING (auth.uid() = player1_id OR auth.uid() = player2_id);
 
 -- Function to update user session
 CREATE OR REPLACE FUNCTION update_user_session()

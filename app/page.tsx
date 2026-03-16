@@ -82,12 +82,12 @@ export default function Home() {
   }, []);
 
   const disciplines = [
-    { name: 'Cards', icon: '🃏', desc: '52-card sequence in 60s', key: 'Cards' },
-    { name: 'Numbers', icon: '🔢', desc: 'Long digit strings', key: 'Numbers' },
-    { name: 'Words', icon: '📝', desc: 'Random word lists', key: 'Words' },
-    { name: 'Names & Faces', icon: '👤', desc: 'International names', key: 'Names & Faces' },
-    { name: 'Images', icon: '🖼️', desc: 'Abstract images', key: 'Images' },
-    { name: 'Surprise', icon: '❓', desc: 'Random mix', key: 'Surprise' },
+    { name: 'Cards', icon: '🃏', desc: '52-card sequence in 60s', key: 'Cards', href: '/train' },
+    { name: 'Maps', icon: '🗺️', desc: 'Memorize place locations', key: 'Maps', href: '/train/map' },
+    { name: 'Numbers', icon: '🔢', desc: 'Long digit strings', key: 'Numbers', href: '/train' },
+    { name: 'Words', icon: '📝', desc: 'Random word lists', key: 'Words', href: '/train' },
+    { name: 'Names & Faces', icon: '👤', desc: 'International names', key: 'Names & Faces', href: '/train' },
+    { name: 'Images', icon: '🖼️', desc: 'Abstract images', key: 'Images', href: '/train' },
   ];
 
   return (
@@ -208,7 +208,7 @@ export default function Home() {
           {disciplines.map((d, i) => (
             <div 
               key={i}
-              onClick={() => window.location.href = '/train'} // links to training page
+              onClick={() => window.location.href = d.href}
               className="bg-[#2e2e2e] rounded-3xl p-8 text-center hover:bg-[#3a3a3a] cursor-pointer transition group"
             >
               <div className="text-6xl mb-4 group-hover:scale-110 transition">{d.icon}</div>
